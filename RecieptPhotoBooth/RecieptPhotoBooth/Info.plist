@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>This app uses the camera to capture photos for your photo booth.</string>
+	<key>NSPhotoLibraryAddOnlyUsageDescription</key>
+	<string>This app needs permission to save photos to your library.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_star._tcp</string>
+	</array>
+	<key>UISupportedExternalAccessoryProtocols</key>
+	<array>
+		<string>jp.star-m.starpro</string>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app uses Bluetooth and USB to discover and print to the receipt printer.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>CossetteTitre-Bold.ttf</string>
+		<string>Epilogue-VariableFont_wght.ttf</string>
+		<string>PinyonScript-Regular.ttf</string>
+	</array>
+</dict>
+</plist>
