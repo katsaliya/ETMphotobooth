@@ -15,6 +15,20 @@ enum StripComposer {
         }
     }
 
+    /// Width/height of a single photo slot for the given template — used to
+    /// size the live camera preview so what guests see while shooting is
+    /// exactly what survives into the print, instead of the preview framing
+    /// a taller crop than the slot keeps (which was cutting off heads).
+    static func photoSlotAspectRatio(for mode: TemplateMode) -> CGFloat {
+        switch mode {
+        case .singlePhoto:
+            return singlePhotoSlot.width / singlePhotoSlot.height
+        case .threePhotoStrip:
+            let slot = photoSlots[0]
+            return slot.width / slot.height
+        }
+    }
+
     // MARK: - Single photo (current default)
 
     private static let singlePhotoHeight: CGFloat = 768

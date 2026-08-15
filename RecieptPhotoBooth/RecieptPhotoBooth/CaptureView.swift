@@ -7,12 +7,12 @@ import AVFoundation
 /// type style instead of the old star shape.
 struct CaptureView: View {
     @ObservedObject var camera: CameraCaptureManager
-    /// Called once all 3 photos are captured, handing them to RootView
-    /// to move on to the review/export screen.
-    var onComplete: ([UIImage]) -> Void = { _ in }
+    /// Called once all photos are captured, handing the mono (print-matching)
+    /// and color (save/AirDrop) sets to RootView to move on to review.
+    var onComplete: (_ photos: [UIImage], _ colorPhotos: [UIImage]) -> Void = { _, _ in }
 
     @ObservedObject private var frameStore = FrameConfigStore.shared
-    
+
     private var shotEmoji: String {
         switch camera.currentShotIndex {
         case 1: return "😜😜😜"
@@ -20,6 +20,20 @@ struct CaptureView: View {
         case 3: return "💋💋💋"
         default: return ""
         }
+    }
+
+    /// Same shot-count logic used to drive runBoothSequence below, so the
+    /// "x/y" indicator always matches how many photos will actually be taken.
+    private var totalShots: Int {
+        frameStore.config.resolvedTemplateMode == .singlePhoto ? 1 : frameStore.config.shotCount
+    }
+
+    /// Fixed width, height derived from the actual print slot's aspect
+    /// ratio — matches WelcomeView so the framing guests see never changes
+    /// between the two screens, and matches what survives into the print.
+    private let previewWidth: CGFloat = 855
+    private var previewHeight: CGFloat {
+        previewWidth / StripComposer.photoSlotAspectRatio(for: frameStore.config.resolvedTemplateMode)
     }
 
     var body: some View {
@@ -37,7 +51,7 @@ struct CaptureView: View {
 
                 ZStack {
                     FilteredCameraPreview(session: camera.session)
-                        .frame(width: 603, height: 398.00992)
+                        .frame(width: previewWidth, height: previewHeight)
                         .clipped()
 
                     if !camera.countdownText.isEmpty {
@@ -46,17 +60,36 @@ struct CaptureView: View {
                             .foregroundColor(EmporiumStyle.accentPink)
                             .shadow(color: .black.opacity(0.5), radius: 10)
                     }
-                    
+
                     if let preview = camera.lastCapturedImage {
                             Image(uiImage: preview)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: 603, height: 398.00992)
+                                .frame(width: previewWidth, height: previewHeight)
                                 .clipped()
                                 .transition(.opacity)
                         }
+
+                    // "x/y" shot progress — set as soon as the countdown for
+                    // that shot begins, so it reads correctly through the
+                    // whole countdown, not just at the moment of capture.
+                    if camera.currentShotIndex > 0 {
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Text("\(camera.currentShotIndex)/\(totalShots)")
+                                    .font(.epilogue(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Capsule().fill(EmporiumStyle.accentPink.opacity(0.85)))
+                                    .padding(12)
+                            }
+                            Spacer()
+                        }
+                    }
                 }
-                .frame(width: 603, height: 398.00992)
+                .frame(width: previewWidth, height: previewHeight)
                 .background(EmporiumStyle.boxFill)
                 .cornerRadius(6)
                 .overlay(
@@ -87,13 +120,13 @@ struct CaptureView: View {
         }
         .onAppear {
             // Camera is already running from WelcomeView — no restart needed.
-            // Guest already tapped "get receipt" — begin shooting immediately
+            // Guest already tapped "start" — begin shooting immediately
             // rather than waiting for another tap here.
             camera.runBoothSequence(
                 shotCount: frameStore.config.resolvedTemplateMode == .singlePhoto ? 1 : frameStore.config.shotCount,
                 interval: frameStore.config.secondsBetweenShots
-            ) { photos in
-                onComplete(photos)
+            ) { photos, colorPhotos in
+                onComplete(photos, colorPhotos)
             }
         }
     }

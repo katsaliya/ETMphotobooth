@@ -5,17 +5,23 @@ import Photos
 /// title) and box styling as Welcome/Capture. Auto-saves to Photos and
 /// auto-prints the strip immediately on appear — no manual print step.
 /// Combines the strip preview with a thank-you message so the guest can
-/// read it while optionally AirDropping to themselves, then taps "done"
-/// to return to Welcome.
+/// read it while optionally AirDropping to themselves, reprinting, or
+/// tapping "take more!" to return to Welcome for another round.
 struct ReviewView: View {
+    /// Mono, print-matching photos — composed into `strip`, what's shown
+    /// on screen and what actually prints.
     let photos: [UIImage]
+    /// Same shots in color — composed into `colorStrip`, what gets saved
+    /// to Photos and AirDropped, alongside the mono version.
+    let colorPhotos: [UIImage]
     @ObservedObject var printer: PrintManager
-    /// Called when the guest taps "done" — RootView returns to Welcome.
+    /// Called when the guest taps "take more!" — RootView returns to Welcome.
     let onDone: () -> Void
 
     @ObservedObject private var frameStore = FrameConfigStore.shared
 
     @State private var strip: UIImage?
+    @State private var colorStrip: UIImage?
     @State private var showShareSheet = false
     @State private var saveMessage: String?
     @State private var printMessage: String?
@@ -34,12 +40,13 @@ struct ReviewView: View {
                 // distinct from EmporiumTitleText (plain text) used elsewhere.
                 Spacer()
 
-                // Thank you! (left) — strip preview, boxed in white and
-                // centered with the logo above — See you soon <3 (right).
-                // Both side texts get equal-width containers so the strip
-                // sits at the true center regardless of text length, and
-                // the strip itself uses an exact (not max) height so its
-                // white background hugs the image with no extra whitespace.
+                // Thank you! (left) — color + b&w strip previews, boxed in
+                // white and centered with the logo above — See you soon <3
+                // (right). Both side texts get equal-width containers so
+                // the pair of previews sits at the true center regardless
+                // of text length. Showing both here even though only the
+                // b&w one ever prints (thermal printer, no color output) —
+                // it's the color one that actually gets kept/shared most.
                 HStack(alignment: .center, spacing: 40) {
                     Text("Thank you!")
                         .font(.pinyonScript(size: 64))
@@ -47,18 +54,10 @@ struct ReviewView: View {
                         .frame(width: 260)
                         .padding(.top, 70)
 
-                    Group {
-                        if let strip {
-                            Image(uiImage: strip)
-                                .resizable()
-                                .scaledToFit()
-                        } else {
-                            EmporiumStyle.boxFill
-                                .frame(width: 260, height: 480)
-                        }
+                    HStack(spacing: 20) {
+                        stripPreview(caption: "color", image: colorStrip)
+                        stripPreview(caption: "b&w", image: strip)
                     }
-                    .frame(height: 480)
-                    .background(Color.white)
 
                     Text("See you \nsoon <3")
                         .font(.pinyonScript(size: 64))
@@ -67,7 +66,7 @@ struct ReviewView: View {
                         .frame(width: 260)
                         .padding(.bottom, 70)
                 }
-                .padding(.horizontal, 70)
+                .padding(.horizontal, 50)
 
                 if printer.isPrinting {
                     Text("printing…")
@@ -90,16 +89,25 @@ struct ReviewView: View {
 
                 Spacer()
 
-                HStack(spacing: 70) {
+                HStack(spacing: 55) {
                     Button {
                         showShareSheet = true
                     } label: {
-                        textButton(label: "airdrop", enabled: strip != nil)
+                        textButton(label: "airdrop", enabled: strip != nil && colorStrip != nil)
+                    }
+                    .disabled(strip == nil || colorStrip == nil)
+
+                    Button {
+                        if let strip {
+                            printer.printStrip(strip)
+                        }
+                    } label: {
+                        textButton(label: "reprint", enabled: strip != nil)
                     }
                     .disabled(strip == nil)
 
                     Button(action: onDone) {
-                        textButton(label: "done", enabled: true)
+                        textButton(label: "take more!", enabled: true)
                     }
                 }
                 .padding(.bottom, 75)
@@ -109,17 +117,44 @@ struct ReviewView: View {
         // "tag us" corner that Welcome/Capture show.
         .onAppear {
             let composed = StripComposer.composeStrip(photos: photos, config: frameStore.config)
+            let composedColor = StripComposer.composeStrip(photos: colorPhotos, config: frameStore.config)
             strip = composed
-            saveStripLocally(composed)
+            colorStrip = composedColor
+            saveStripLocally(mono: composed, color: composedColor)
             autoprint(composed)
         }
         .sheet(isPresented: $showShareSheet) {
-            if let strip {
-                ShareSheet(items: [strip])
+            if let strip, let colorStrip {
+                ShareSheet(items: [colorStrip, strip])
             }
         }
         .sheet(isPresented: $showPrinterManagement) {
             PrinterManagementView(printer: printer)
+        }
+    }
+
+    /// One labeled strip preview box — used twice (color, then b&w) in the
+    /// middle band. Exact (not max) height so the white background hugs
+    /// the image with no extra whitespace, same trick as the single-preview
+    /// version before this.
+    private func stripPreview(caption: String, image: UIImage?) -> some View {
+        VStack(spacing: 6) {
+            Text(caption)
+                .font(.epilogue(size: 12, weight: .bold))
+                .foregroundColor(.white.opacity(0.85))
+
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    EmporiumStyle.boxFill
+                        .frame(width: 200, height: 380)
+                }
+            }
+            .frame(height: 380)
+            .background(Color.white)
         }
     }
 
@@ -146,16 +181,17 @@ struct ReviewView: View {
         }
     }
 
-    /// Every strip auto-saves to the iPad's Photos library on appear,
-    /// independent of AirDrop or printing.
-    private func saveStripLocally(_ image: UIImage) {
+    /// Both the mono (print-matching) and color strips auto-save to the
+    /// iPad's Photos library on appear, independent of AirDrop or printing.
+    private func saveStripLocally(mono: UIImage, color: UIImage) {
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             guard status == .authorized || status == .limited else {
                 DispatchQueue.main.async { saveMessage = "photo library access not granted" }
                 return
             }
             PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
+                PHAssetChangeRequest.creationRequestForAsset(from: color)
+                PHAssetChangeRequest.creationRequestForAsset(from: mono)
             } completionHandler: { success, error in
                 DispatchQueue.main.async {
                     saveMessage = success ? "saved to photos" : "couldn't save: \(error?.localizedDescription ?? "unknown error")"

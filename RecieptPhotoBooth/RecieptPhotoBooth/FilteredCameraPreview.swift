@@ -3,13 +3,15 @@ import AVFoundation
 import MetalKit
 import CoreImage
 
-/// Live camera preview WITH the booth filter applied in real time.
+/// Live camera preview WITH the booth's color filter (contrast/bloom/grain,
+/// no desaturation) applied in real time — guests see the color look live;
+/// the black-and-white conversion only happens for what actually prints.
 ///
 /// AVCaptureVideoPreviewLayer (the simple approach used before) shows the
 /// raw hardware feed directly and can't have a Core Image filter applied
 /// to it. To get a genuinely filtered live preview, this instead:
 ///   1. Captures raw video frames via AVCaptureVideoDataOutput
-///   2. Runs each frame through BoothFilter
+///   2. Runs each frame through BoothFilter.applyColor
 ///   3. Renders the filtered result into an MTKView (Metal-backed) —
 ///      Metal is used here purely as an efficient way to draw the
 ///      already-filtered image each frame, not for the filtering itself.
@@ -91,7 +93,7 @@ struct FilteredCameraPreview: UIViewRepresentable {
             }
 
             let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-            let filtered = BoothFilter.apply(to: ciImage)
+            let filtered = BoothFilter.applyColor(to: ciImage)
 
             imageLock.lock()
             currentFilteredImage = filtered

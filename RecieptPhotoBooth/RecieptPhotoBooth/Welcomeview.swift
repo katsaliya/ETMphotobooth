@@ -9,7 +9,16 @@ struct WelcomeView: View {
     @ObservedObject var printer: PrintManager
     let onStart: () -> Void
 
+    @ObservedObject private var frameStore = FrameConfigStore.shared
     @State private var showPrinterManagement = false
+
+    /// Fixed width, height derived from the actual print slot's aspect
+    /// ratio — keeps the live preview honest about what will survive into
+    /// the printed photo instead of showing a taller crop than gets kept.
+    private let previewWidth: CGFloat = 855
+    private var previewHeight: CGFloat {
+        previewWidth / StripComposer.photoSlotAspectRatio(for: frameStore.config.resolvedTemplateMode)
+    }
 
     var body: some View {
         Boothbackground {
@@ -24,7 +33,8 @@ struct WelcomeView: View {
                     .padding(.top, 6)
 
                 FilteredCameraPreview(session: camera.session)
-                    .frame(width: 603, height: 398.00992)
+                    .frame(width: previewWidth, height: previewHeight)
+                    .clipped()
                     .background(EmporiumStyle.boxFill)
                     .cornerRadius(6)
                     .overlay(
@@ -43,8 +53,9 @@ struct WelcomeView: View {
                             )
                             .frame(width: 252, height: 57)
 
-                        Text("get receipt")
-                            .font(.epilogue(size: 18, weight: .bold))
+                        Text("start")
+                            .font(.epilogue(size: 24, weight: .bold))
+                            .fontWeight(.bold)
                             .tracking(-2)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.black)

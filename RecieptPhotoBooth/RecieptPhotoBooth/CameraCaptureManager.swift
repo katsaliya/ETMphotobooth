@@ -6,14 +6,17 @@ final class CameraCaptureManager: NSObject, ObservableObject {
 
     @Published var isRunningSequence = false
     @Published var countdownText: String = ""
+    /// Mono (print-matching) captures — what gets composed into the printed strip.
     @Published var capturedImages: [UIImage] = []
+    /// Color counterpart of the above, same shots — what gets saved/AirDropped.
+    @Published var capturedColorImages: [UIImage] = []
     @Published var lastError: String?
     @Published var currentShotIndex: Int = 0
     @Published var lastCapturedImage: UIImage?
 
     let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
-    private var pendingCompletion: ((UIImage?) -> Void)?
+    private var pendingCompletion: (((mono: UIImage, color: UIImage)?) -> Void)?
 
     override init() {
         super.init()
@@ -95,32 +98,36 @@ final class CameraCaptureManager: NSObject, ObservableObject {
     }
 
     /// The one button the public sees. Fires N shots, `interval` seconds apart,
-    /// then hands the finished set back on the main thread.
+    /// then hands the finished mono + color sets back on the main thread.
     func runBoothSequence(
         shotCount: Int,
         interval: TimeInterval,
-        onComplete: @escaping ([UIImage]) -> Void
+        onComplete: @escaping (_ monoPhotos: [UIImage], _ colorPhotos: [UIImage]) -> Void
     ) {
         guard !isRunningSequence else { return }
         isRunningSequence = true
         capturedImages = []
+        capturedColorImages = []
 
         func takeNext(_ remaining: Int) {
             guard remaining > 0 else {
                 isRunningSequence = false
                 countdownText = ""
                 currentShotIndex = 0
-                onComplete(capturedImages)
+                onComplete(capturedImages, capturedColorImages)
                 return
             }
 
             currentShotIndex = shotCount - remaining + 1
 
             countdown(from: 3) { [weak self] in
-                self?.capturePhoto { image in
-                    if let image {
-                        self?.capturedImages.append(image)
-                        self?.lastCapturedImage = image
+                self?.capturePhoto { result in
+                    if let result {
+                        self?.capturedImages.append(result.mono)
+                        self?.capturedColorImages.append(result.color)
+                        // Color, matching the live preview — the mono
+                        // conversion is print-only, never shown on screen.
+                        self?.lastCapturedImage = result.color
                     }
                     // Show a preview of the photo just taken before moving on.
                     DispatchQueue.main.asyncAfter(deadline: .now() + interval) {
@@ -146,7 +153,7 @@ final class CameraCaptureManager: NSObject, ObservableObject {
         }
     }
 
-    private func capturePhoto(completion: @escaping (UIImage?) -> Void) {
+    private func capturePhoto(completion: @escaping ((mono: UIImage, color: UIImage)?) -> Void) {
         pendingCompletion = completion
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
@@ -177,13 +184,14 @@ extension CameraCaptureManager: AVCapturePhotoCaptureDelegate {
             }
             return
         }
-        // Same filter as the live preview, so what guests saw while
-        // shooting matches what gets saved and printed. Kept off the main
-        // thread since it's real CPU/GPU work — only the completion hop
-        // below needs to be on main.
-        let filtered = BoothFilter.apply(to: rawImage)
+        // Mono matches the live preview/print; color is the same grain/glow
+        // treatment without desaturation, for the save/AirDrop copy. Both
+        // kept off the main thread since it's real CPU/GPU work — only the
+        // completion hop below needs to be on main.
+        let mono = BoothFilter.apply(to: rawImage)
+        let color = BoothFilter.applyColor(to: rawImage)
         DispatchQueue.main.async { [weak self] in
-            self?.pendingCompletion?(filtered)
+            self?.pendingCompletion?((mono: mono, color: color))
             self?.pendingCompletion = nil
         }
     }

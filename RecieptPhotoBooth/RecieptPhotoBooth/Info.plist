@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Booth By Liya</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app uses the camera to capture photos for your photo booth.</string>
 	<key>NSPhotoLibraryAddOnlyUsageDescription</key>
