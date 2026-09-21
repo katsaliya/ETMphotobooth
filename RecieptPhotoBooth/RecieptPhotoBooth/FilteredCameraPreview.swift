@@ -126,13 +126,19 @@ struct FilteredCameraPreview: UIViewRepresentable {
             
             let flipped = image.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
             
-            // Scale/center the filtered image to fill the view (aspect fill),
-            // matching how the old preview layer's .resizeAspectFill looked.
+            // Scale to fill the view (aspect fill), matching how the old
+            // preview layer's .resizeAspectFill looked — but anchor the crop
+            // to the TOP of the camera feed instead of centering it, so the
+            // box shows the top portion of the shot (heads/faces) rather
+            // than whatever happened to land in the middle. Horizontal stays
+            // centered. Note: CIImage's Y axis runs bottom-to-top, so the
+            // "top" of the visual image is the *maximum* Y in its extent —
+            // origin.y + height, not origin.y.
             let drawableSize = CGSize(width: view.drawableSize.width, height: view.drawableSize.height)
             let scale = max(drawableSize.width / flipped.extent.width, drawableSize.height / flipped.extent.height)
             let scaledImage = flipped.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
             let originX = scaledImage.extent.origin.x + (scaledImage.extent.width - drawableSize.width) / 2
-            let originY = scaledImage.extent.origin.y + (scaledImage.extent.height - drawableSize.height) / 2
+            let originY = scaledImage.extent.origin.y + (scaledImage.extent.height - drawableSize.height)
             let croppedImage = scaledImage.cropped(to: CGRect(x: originX, y: originY, width: drawableSize.width, height: drawableSize.height))
 
             ciContext.render(

@@ -65,7 +65,12 @@ struct CaptureView: View {
                             Image(uiImage: preview)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: previewWidth, height: previewHeight)
+                                // alignment: .top (not the default center) so
+                                // this matches StripComposer's top-anchored
+                                // print crop — otherwise this flash preview
+                                // would show a different slice of the photo
+                                // than what actually ends up printed.
+                                .frame(width: previewWidth, height: previewHeight, alignment: .top)
                                 .clipped()
                                 .transition(.opacity)
                         }

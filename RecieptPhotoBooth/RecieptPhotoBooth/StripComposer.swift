@@ -107,10 +107,14 @@ enum StripComposer {
 }
  
 private extension CGSize {
+    /// Aspect-fills `rect`, anchored to the top of the source image instead
+    /// of centered — matches FilteredCameraPreview's live crop (top-anchored,
+    /// horizontally centered) so what guests see while shooting is exactly
+    /// what ends up in the print, not a lower slice of it.
     func aspectFillRect(in rect: CGRect) -> CGRect {
         let scale = max(rect.width / width, rect.height / height)
         let w = width * scale
         let h = height * scale
-        return CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h)
+        return CGRect(x: rect.midX - w / 2, y: rect.minY, width: w, height: h)
     }
 }
