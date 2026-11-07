@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Copy this file to RecieptPhotoBooth/RecieptPhotoBooth/BoothDelivery.plist
+  (next to the Swift files) and fill it in. That copy is git-ignored.
+
+  BASE_URL   Photo page address, no trailing slash.
+             Now:   https://etm-photobooth.<your-subdomain>.workers.dev
+             Later: https://photos.<our domain>
+             Local test in the Simulator: http://localhost:8787
+  BOOTH_KEY  Same value as the Worker secret BOOTH_KEY (npx wrangler secret put BOOTH_KEY).
+-->
+<plist version="1.0">
+<dict>
+	<key>BASE_URL</key>
+	<string>https://etm-photobooth.REPLACE-ME.workers.dev</string>
+	<key>BOOTH_KEY</key>
+	<string>REPLACE-WITH-BOOTH-KEY</string>
+</dict>
+</plist>

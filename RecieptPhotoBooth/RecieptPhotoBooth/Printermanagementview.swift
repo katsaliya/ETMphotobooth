@@ -12,6 +12,7 @@ import StarIO10
 /// one if multiple show up, or disconnect entirely.
 struct PrinterManagementView: View {
     @ObservedObject var printer: PrintManager
+    @ObservedObject private var frameStore = FrameConfigStore.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -72,6 +73,21 @@ struct PrinterManagementView: View {
                 }
 
                 Section {
+                    Stepper(value: runUpBinding, in: FrameConfig.liveRunUpRange, step: 0.25) {
+                        Text("Run-up before each photo: \(runUpBinding.wrappedValue, specifier: "%.2g") s")
+                            .font(.epilogue(size: 14, weight: .light))
+                    }
+                    Stepper(value: freezeBinding, in: FrameConfig.liveFreezeRange, step: 0.25) {
+                        Text("Freeze on each photo: \(freezeBinding.wrappedValue, specifier: "%.2g") s")
+                            .font(.epilogue(size: 14, weight: .light))
+                    }
+                } header: {
+                    Text("Live video")
+                } footer: {
+                    Text("Saved with the color strip in Files → On My iPad → Booth By Liya → Sessions.")
+                }
+
+                Section {
                     Button("Rescan") {
                         printer.autoConnect(force: true)
                     }
@@ -95,5 +111,19 @@ struct PrinterManagementView: View {
                 printer.startDiscovery()
             }
         }
+    }
+
+    private var runUpBinding: Binding<Double> {
+        Binding(
+            get: { frameStore.config.resolvedLiveRunUpSeconds },
+            set: { frameStore.config.liveRunUpSeconds = $0 }
+        )
+    }
+
+    private var freezeBinding: Binding<Double> {
+        Binding(
+            get: { frameStore.config.resolvedLiveFreezeSeconds },
+            set: { frameStore.config.liveFreezeSeconds = $0 }
+        )
     }
 }

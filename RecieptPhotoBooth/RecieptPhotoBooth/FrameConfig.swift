@@ -3,7 +3,7 @@ import Combine
 
 /// Which print layout StripComposer should use. Kept as a config switch
 /// (rather than deleting the 3-photo code) so we can flip back easily.
-enum TemplateMode: String, Codable {
+nonisolated enum TemplateMode: String, Codable, Sendable {
     case singlePhoto
     case threePhotoStrip
 }
@@ -28,6 +28,23 @@ struct FrameConfig: Codable, Equatable {
     /// saved config, including savedPrinterIdentifier. nil = current default.
     var templateMode: TemplateMode? = nil
     var resolvedTemplateMode: TemplateMode { templateMode ?? .threePhotoStrip }
+
+    /// Live video settings. Optional for the same reason as templateMode:
+    /// older saved configs decode fine and fall back to the defaults.
+    /// Run-up: seconds of motion before each shutter (1–2 s).
+    var liveRunUpSeconds: Double? = nil
+    /// Freeze: seconds each slot holds on its captured photo before the loop resets.
+    var liveFreezeSeconds: Double? = nil
+
+    static let liveRunUpRange: ClosedRange<Double> = 1.0...2.0
+    static let liveFreezeRange: ClosedRange<Double> = 0.5...4.0
+
+    var resolvedLiveRunUpSeconds: Double {
+        min(max(liveRunUpSeconds ?? 1.5, Self.liveRunUpRange.lowerBound), Self.liveRunUpRange.upperBound)
+    }
+    var resolvedLiveFreezeSeconds: Double {
+        min(max(liveFreezeSeconds ?? 1.5, Self.liveFreezeRange.lowerBound), Self.liveFreezeRange.upperBound)
+    }
 
     static let storageKey = "frameConfig.v2"
 }

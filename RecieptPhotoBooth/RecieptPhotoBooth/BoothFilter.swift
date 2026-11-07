@@ -2,73 +2,33 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import UIKit
 
-/// The booth's signature look: boosted contrast, film grain, and a soft
-/// glow, applied identically to the live camera preview and to captured
-/// photos so what guests see is exactly what prints. The mono (desaturated)
-/// variant is used for the preview/print; the color variant is the same
-/// treatment without desaturation, used for the digital save/AirDrop copy.
+/// No effects: the camera shows and saves the photo as shot. The only
+/// processing left is converting to black and white for the thermal print
+/// (and the on-screen "b&w" copy). The color copy and the live preview are
+/// untouched. (Contrast, bloom and film grain were removed Nov 5, 2026 at
+/// the owner's request.)
 enum BoothFilter {
 
-    /// The mono look used for the live preview and the printed strip.
+    /// Black-and-white version, used for the printed strip.
     static func apply(to image: CIImage) -> CIImage {
         apply(to: image, saturation: 0)
     }
 
-    /// Same contrast/bloom/grain treatment, but in color — used for the
-    /// digital save/AirDrop copy. That copy doesn't need to match the
-    /// thermal printer's 1-bit dithered output the way the live preview
-    /// and the print itself do, so it keeps the booth's look without the
-    /// black-and-white conversion.
+    /// Color version: returned unchanged. Used for the live preview and the
+    /// save/AirDrop copy.
     static func applyColor(to image: CIImage) -> CIImage {
         apply(to: image, saturation: 1)
     }
 
     private static func apply(to image: CIImage, saturation: Float) -> CIImage {
-        var output = image
-        let extent = image.extent
-
-        // 1. Saturation (0 for the mono/print look, 1 = untouched for color), push contrast up.
+        guard saturation < 1 else { return image }
         let colorControls = CIFilter.colorControls()
-        colorControls.inputImage = output
+        colorControls.inputImage = image
         colorControls.saturation = saturation
-        colorControls.contrast = 1.08
-        colorControls.brightness = -0.03
-        output = colorControls.outputImage ?? output
-
-        // 2. Soft glow — a gentle bloom gives that hazy, soft-texture feel
-        // without fully blurring detail away. Kept subtle: bloom brightens
-        // highlights, and on the thermal printer's 1-bit dithering that
-        // extra brightness reads as washed-out, low-detail skin tones.
-        let bloom = CIFilter.bloom()
-        bloom.inputImage = output
-        bloom.intensity = 0.18
-        bloom.radius = 5
-        output = (bloom.outputImage ?? output).cropped(to: extent)
-
-        // 3. Film grain — generate monochrome noise and soft-light blend
-        // it over the image at low strength.
-        let noise = CIFilter.randomGenerator().outputImage?.cropped(to: extent)
-        if let noise {
-            let monoMatrix = CIFilter.colorMatrix()
-            monoMatrix.inputImage = noise
-            // Collapse RGB into a single gray value so the grain reads as
-            // texture, not colored static.
-            monoMatrix.rVector = CIVector(x: 0.33, y: 0.33, z: 0.33, w: 0)
-            monoMatrix.gVector = CIVector(x: 0.33, y: 0.33, z: 0.33, w: 0)
-            monoMatrix.bVector = CIVector(x: 0.33, y: 0.33, z: 0.33, w: 0)
-            monoMatrix.aVector = CIVector(x: 0, y: 0, z: 0, w: 0.06) // low opacity grain
-            let grain = monoMatrix.outputImage ?? noise
-
-            let blend = CIFilter.softLightBlendMode()
-            blend.inputImage = grain
-            blend.backgroundImage = output
-            output = (blend.outputImage ?? output).cropped(to: extent)
-        }
-
-        return output
+        return colorControls.outputImage ?? image
     }
 
-    /// Convenience for applying the mono filter to a captured UIImage (used
+    /// Convenience for converting a captured UIImage to black and white (used
     /// right after each photo is taken, before it's added to the strip).
     static func apply(to uiImage: UIImage) -> UIImage {
         render(uiImage, saturation: 0)

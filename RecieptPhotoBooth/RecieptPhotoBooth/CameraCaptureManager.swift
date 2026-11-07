@@ -13,6 +13,9 @@ final class CameraCaptureManager: NSObject, ObservableObject {
     @Published var lastError: String?
     @Published var currentShotIndex: Int = 0
     @Published var lastCapturedImage: UIImage?
+    /// Live run-up for each captured shot (same order as the photos): the
+    /// buffered frames from just before its shutter. Read after onComplete.
+    private(set) var capturedRunUps: [LiveFrameBuffer.Clip] = []
 
     let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
@@ -108,6 +111,8 @@ final class CameraCaptureManager: NSObject, ObservableObject {
         isRunningSequence = true
         capturedImages = []
         capturedColorImages = []
+        capturedRunUps = []
+        let runUpSeconds = FrameConfigStore.shared.config.resolvedLiveRunUpSeconds
 
         func takeNext(_ remaining: Int) {
             guard remaining > 0 else {
@@ -121,10 +126,15 @@ final class CameraCaptureManager: NSObject, ObservableObject {
             currentShotIndex = shotCount - remaining + 1
 
             countdown(from: 3) { [weak self] in
+                // The shutter moment: the run-up is the frames before this.
+                let shutter = CACurrentMediaTime()
                 self?.capturePhoto { result in
                     if let result {
                         self?.capturedImages.append(result.mono)
                         self?.capturedColorImages.append(result.color)
+                        self?.capturedRunUps.append(
+                            LiveFrameBuffer.shared.clip(endingAt: shutter, duration: runUpSeconds)
+                        )
                         // Color, matching the live preview — the mono
                         // conversion is print-only, never shown on screen.
                         self?.lastCapturedImage = result.color

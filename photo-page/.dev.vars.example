@@ -1,0 +1,2 @@
+# Copy to .dev.vars for local testing (wrangler dev). Never commit .dev.vars.
+BOOTH_KEY=local-dev-booth-key

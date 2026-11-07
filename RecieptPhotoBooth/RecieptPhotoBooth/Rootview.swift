@@ -1,14 +1,14 @@
 import SwiftUI
 
 /// Every screen in the booth flow, in order.
-/// thankYou was merged into ReviewView — the message now shows
-/// alongside the photo strip so guests can read it while AirDropping.
 enum BoothScreen {
     case welcome
-    case capture
-    /// photos: mono, print-matching set. colorPhotos: same shots, color —
-    /// used for the digital save/AirDrop copy.
-    case review(photos: [UIImage], colorPhotos: [UIImage])
+    /// frame: the strip the guest picked on the home screen.
+    case capture(frame: BoothFrame)
+    /// 04 · Printing + text me. photos: mono, print-matching set.
+    /// colorPhotos: same shots, color. frame: the strip they picked.
+    /// liveJob: the color JPG + live MP4 being written in the background.
+    case review(photos: [UIImage], colorPhotos: [UIImage], frame: BoothFrame, liveJob: LiveExportJob)
 }
 
 /// Owns which screen is currently showing and hands navigation control
@@ -25,28 +25,51 @@ struct RootView: View {
 
     // MARK: - Idle auto-reset
     //
-    // If nobody touches the screen for 15s, snap back to Welcome so an
-    // abandoned session (guest walked off after Review, or tapped Start
-    // and wandered away) doesn't block the next guest. Exempt while
-    // Capture's automatic countdown sequence is running — that screen is
-    // *meant* to go several seconds with zero touches, so the idle timer
-    // would otherwise abort a perfectly normal countdown.
-    private let idleTimeout: TimeInterval = 15
+    // If nobody touches the screen for a while, snap back to Welcome so an
+    // abandoned session doesn't block the next guest: 15s on Welcome, 30s
+    // on Printing/Text me (any tap, including keypad presses, resets it, so
+    // nobody gets kicked out mid-typing). Exempt while Capture's automatic
+    // countdown sequence is running — that screen is *meant* to go several
+    // seconds with zero touches.
+    private var idleTimeout: TimeInterval {
+        // Screen 04: 45 s while it shows the QR code (time to scan),
+        // 30 s for the texting form.
+        if case .review = currentScreen { return BoothFeatures.textingEnabled ? 30 : 45 }
+        return 15
+    }
     @State private var lastInteraction = Date()
 
     var body: some View {
         Group {
             switch currentScreen {
             case .welcome:
-                WelcomeView(camera: camera, printer: printer, onStart: { currentScreen = .capture })
-
-            case .capture:
-                CaptureView(camera: camera, onComplete: { photos, colorPhotos in
-                    currentScreen = .review(photos: photos, colorPhotos: colorPhotos)
+                WelcomeView(camera: camera, printer: printer, onStart: { frame in
+                    currentScreen = .capture(frame: frame)
                 })
 
-            case .review(let photos, let colorPhotos):
-                ReviewView(photos: photos, colorPhotos: colorPhotos, printer: printer, onDone: { currentScreen = .welcome })
+            case .capture(let frame):
+                CaptureView(
+                    camera: camera,
+                    frame: frame,
+                    onComplete: { photos, colorPhotos in
+                        let config = FrameConfigStore.shared.config
+                        // The photo page id exists from the last shot on,
+                        // so the QR shows immediately — before any upload.
+                        let job = LiveExportJob(
+                            sessionID: SessionID.make(),
+                            frame: frame,
+                            colorPhotos: colorPhotos,
+                            runUps: camera.capturedRunUps,
+                            runUpSeconds: config.resolvedLiveRunUpSeconds,
+                            freezeSeconds: config.resolvedLiveFreezeSeconds
+                        )
+                        currentScreen = .review(photos: photos, colorPhotos: colorPhotos, frame: frame, liveJob: job)
+                    }
+                )
+
+            case .review(let photos, let colorPhotos, let frame, let liveJob):
+                ReviewView(photos: photos, colorPhotos: colorPhotos, frame: frame, liveJob: liveJob,
+                           printer: printer, onDone: { currentScreen = .welcome })
             }
         }
         // simultaneousGesture (not gesture) so this never steals touches
@@ -55,6 +78,8 @@ struct RootView: View {
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in lastInteraction = Date() }
         )
+        // Resume any unfinished uploads from earlier sessions.
+        .onAppear { UploadQueue.shared.start() }
         .task(id: idleTaskID) {
             guard idleResetEnabled else { return }
             try? await Task.sleep(for: .seconds(idleTimeout))

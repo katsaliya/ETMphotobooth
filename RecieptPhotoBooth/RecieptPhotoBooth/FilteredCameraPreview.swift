@@ -93,6 +93,8 @@ struct FilteredCameraPreview: UIViewRepresentable {
             }
 
             let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            // Keep a rolling few seconds for each shot's live run-up.
+            LiveFrameBuffer.shared.append(ciImage)
             let filtered = BoothFilter.applyColor(to: ciImage)
 
             imageLock.lock()

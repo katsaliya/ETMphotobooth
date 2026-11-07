@@ -48,3 +48,6 @@ xcov_output/
 .vscode/
 .idea/
 *.iml
+
+# Photo page config (booth key) — never commit
+RecieptPhotoBooth/RecieptPhotoBooth/BoothDelivery.plist
